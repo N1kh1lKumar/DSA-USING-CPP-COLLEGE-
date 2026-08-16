@@ -1,0 +1,86 @@
+name: Sync LeetCode SQL Problems
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  sync-database:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout DSA repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find SQL problems
+        id: find_sql
+        run: |
+          SQL_FILES=$(find . -type f -name "*.sql" -not -path "./.git/*")
+
+          if [ -z "$SQL_FILES" ]; then
+            echo "No SQL files found."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "SQL files found:"
+            echo "$SQL_FILES"
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout Database repository
+        if: steps.find_sql.outputs.found == 'true'
+        uses: actions/checkout@v4
+        with:
+          repository: N1kh1lKumar/DATABASE-USING-SQL
+          token: ${{ secrets.DATABASE_REPO_TOKEN }}
+          path: database-repo
+
+      - name: Move SQL problems
+        if: steps.find_sql.outputs.found == 'true'
+        run: |
+          mkdir -p database-repo
+
+          find . -type f -name "*.sql" -not -path "./.git/*" | while read sql_file
+          do
+              problem_dir=$(dirname "$sql_file")
+
+              echo "Moving: $problem_dir"
+
+              folder_name=$(basename "$problem_dir")
+
+              rm -rf "database-repo/$folder_name"
+
+              cp -r "$problem_dir" "database-repo/$folder_name"
+
+              git rm -r "$problem_dir"
+          done
+
+      - name: Commit Database repository
+        if: steps.find_sql.outputs.found == 'true'
+        working-directory: database-repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add .
+
+          if git diff --cached --quiet; then
+            echo "No database changes."
+          else
+            git commit -m "Add LeetCode SQL solution"
+            git push origin main
+          fi
+
+      - name: Commit DSA repository cleanup
+        if: steps.find_sql.outputs.found == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git commit -m "Move SQL problems to database repository"
+          git push origin main
