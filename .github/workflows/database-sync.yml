@@ -13,25 +13,39 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # --------------------------------------------------
+      # 1. Checkout DSA repository
+      # --------------------------------------------------
       - name: Checkout DSA repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
+      # --------------------------------------------------
+      # 2. Find SQL files ONLY in the DSA repository
+      # --------------------------------------------------
       - name: Find SQL problems
         id: find_sql
+        shell: bash
         run: |
-          SQL_FILES=$(find . -type f -name "*.sql" -not -path "./.git/*")
+          SQL_FILES=$(find . \
+            -type f \
+            -name "*.sql" \
+            -not -path "./.git/*" \
+            -not -path "./database-repo/*")
 
           if [ -z "$SQL_FILES" ]; then
-            echo "No SQL files found."
+            echo "No SQL problems found."
             echo "found=false" >> "$GITHUB_OUTPUT"
           else
-            echo "SQL files found:"
+            echo "SQL problems found:"
             echo "$SQL_FILES"
             echo "found=true" >> "$GITHUB_OUTPUT"
           fi
 
+      # --------------------------------------------------
+      # 3. Checkout Database repository
+      # --------------------------------------------------
       - name: Checkout Database repository
         if: steps.find_sql.outputs.found == 'true'
         uses: actions/checkout@v4
@@ -40,29 +54,46 @@ jobs:
           token: ${{ secrets.DATABASE_REPO_TOKEN }}
           path: database-repo
 
+      # --------------------------------------------------
+      # 4. Move SQL problems
+      # --------------------------------------------------
       - name: Move SQL problems
         if: steps.find_sql.outputs.found == 'true'
+        shell: bash
         run: |
-          mkdir -p database-repo
-
-          find . -type f -name "*.sql" -not -path "./.git/*" | while read sql_file
+          find . \
+            -type f \
+            -name "*.sql" \
+            -not -path "./.git/*" \
+            -not -path "./database-repo/*" |
+          while read -r sql_file
           do
-              problem_dir=$(dirname "$sql_file")
+            problem_dir=$(dirname "$sql_file")
+            folder_name=$(basename "$problem_dir")
 
-              echo "Moving: $problem_dir"
+            echo "----------------------------------------"
+            echo "SQL file: $sql_file"
+            echo "Problem folder: $problem_dir"
+            echo "Destination: database-repo/$folder_name"
+            echo "----------------------------------------"
 
-              folder_name=$(basename "$problem_dir")
+            # Remove an existing copy in the database repository
+            rm -rf "database-repo/$folder_name"
 
-              rm -rf "database-repo/$folder_name"
+            # Copy the complete LeetSync problem folder
+            cp -r "$problem_dir" "database-repo/$folder_name"
 
-              cp -r "$problem_dir" "database-repo/$folder_name"
-
-              git rm -r "$problem_dir"
+            # Remove the SQL problem from the DSA repository
+            git rm -r "$problem_dir"
           done
 
+      # --------------------------------------------------
+      # 5. Commit changes to Database repository
+      # --------------------------------------------------
       - name: Commit Database repository
         if: steps.find_sql.outputs.found == 'true'
         working-directory: database-repo
+        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -70,17 +101,25 @@ jobs:
           git add .
 
           if git diff --cached --quiet; then
-            echo "No database changes."
+            echo "No changes to commit in DATABASE-USING-SQL."
           else
             git commit -m "Add LeetCode SQL solution"
             git push origin main
           fi
 
+      # --------------------------------------------------
+      # 6. Commit cleanup in DSA repository
+      # --------------------------------------------------
       - name: Commit DSA repository cleanup
         if: steps.find_sql.outputs.found == 'true'
+        shell: bash
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          git commit -m "Move SQL problems to database repository"
-          git push origin main
+          if git diff --cached --quiet; then
+            echo "No SQL files were removed from DSA repository."
+          else
+            git commit -m "Move SQL problems to database repository"
+            git push origin main
+          fi
