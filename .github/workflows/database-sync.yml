@@ -50,7 +50,7 @@ jobs:
         if: steps.find_sql.outputs.found == 'true'
         uses: actions/checkout@v4
         with:
-          repository: N1kh1lKumar/DATABASE-USING-SQL
+          repository: N1kh1lKumar/MYSQL_JOURNEY
           token: ${{ secrets.DATABASE_REPO_TOKEN }}
           path: database-repo
 
