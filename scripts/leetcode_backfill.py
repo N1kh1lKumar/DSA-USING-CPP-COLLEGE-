@@ -77,7 +77,14 @@ def gql(query: str, variables: dict[str, Any] | None = None) -> dict[str, Any]:
     if response.status_code == 429:
         stop("LeetCode rate-limited the workflow. Wait and run it again.")
     if not response.ok:
-        stop(f"LeetCode returned HTTP {response.status_code}. No files were pushed.")
+        # Include a short, sanitized response body so API/query errors are diagnosable.
+        # Do not print request headers or cookie values.
+        body = re.sub(r"\s+", " ", response.text or "").strip()
+        body = body[:1200] if body else "(empty response body)"
+        stop(
+            f"LeetCode returned HTTP {response.status_code}. "
+            f"Response body: {body}. No files were pushed."
+        )
     try:
         payload = response.json()
     except ValueError:
