@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Preview only (recommended first run). Set false to commit missing files."
+        description: "Preview only. Set false only after reviewing the report."
         required: true
         type: boolean
         default: true
@@ -53,7 +53,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: leetcode-backfill-report
-          path: backfill-report.md
+          path: |
+            backfill-report.md
+            backfill-added-files.txt
           if-no-files-found: ignore
           retention-days: 14
 
@@ -61,15 +63,19 @@ jobs:
         if: ${{ inputs.dry_run == false }}
         run: |
           if [[ ! -s backfill-added-files.txt ]]; then
-            echo "No missing files were added."
+            echo "No missing files were created by this run."
             exit 0
           fi
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add --pathspec-from-file=backfill-added-files.txt
+
           if git diff --cached --quiet; then
             echo "No additions to commit."
             exit 0
           fi
+
           git commit -m "Backfill missing LeetCode solutions"
-          git push
+          git push origin HEAD:main

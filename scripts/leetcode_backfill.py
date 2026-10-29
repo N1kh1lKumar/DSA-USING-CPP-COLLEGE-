@@ -324,13 +324,13 @@ def main() -> None:
     # Manifest includes only files actually created by this run; do not stage pre-existing files.
     manifest_paths = getattr(main, "_added_paths", [])
     (ROOT / "backfill-added-files.txt").write_text(
-        "".join(str(p.as_posix()) + "\\n" for p in manifest_paths), encoding="utf-8"
+        "".join(p.relative_to(ROOT).as_posix() + "\n" for p in manifest_paths), encoding="utf-8"
     )
     print(f"Report written to {REPORT}.")
     if DRY_RUN:
         print("Dry run finished. Review the uploaded report before running with dry_run=false.")
     else:
-        print("Write mode finished. Workflow will commit only new files under LeetCode/.")
+        print("Write mode finished. The manifest lists only files created during this run.")
 
 if __name__ == "__main__":
     main()
