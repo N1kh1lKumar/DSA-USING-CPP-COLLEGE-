@@ -1,0 +1,75 @@
+name: LeetCode One-Time Backfill
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Preview only (recommended first run). Set false to commit missing files."
+        required: true
+        type: boolean
+        default: true
+      max_problems:
+        description: "Maximum solved problems to inspect (0 = all returned by LeetCode)"
+        required: true
+        type: number
+        default: 0
+
+permissions:
+  contents: write
+
+concurrency:
+  group: leetcode-backfill
+  cancel-in-progress: false
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check requests
+
+      - name: Discover and backfill missing solutions
+        env:
+          LEETCODE_SESSION: ${{ secrets.LEETCODE_SESSION }}
+          LEETCODE_CSRF_TOKEN: ${{ secrets.LEETCODE_CSRF_TOKEN }}
+          LEETCODE_USERNAME: ${{ secrets.LEETCODE_USERNAME }}
+          DRY_RUN: ${{ inputs.dry_run }}
+          MAX_PROBLEMS: ${{ inputs.max_problems }}
+        run: python scripts/leetcode_backfill.py
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: leetcode-backfill-report
+          path: backfill-report.md
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Commit and push additions
+        if: ${{ inputs.dry_run == false }}
+        run: |
+          if [[ ! -s backfill-added-files.txt ]]; then
+            echo "No missing files were added."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --pathspec-from-file=backfill-added-files.txt
+          if git diff --cached --quiet; then
+            echo "No additions to commit."
+            exit 0
+          fi
+          git commit -m "Backfill missing LeetCode solutions"
+          git push
