@@ -113,8 +113,7 @@ def get_solved_questions() -> list[dict[str, Any]]:
       userProgressQuestionList(filters: $filters) {
         totalNum
         questions {
-          questionId
-          questionFrontendId
+          frontendId
           title
           titleSlug
           difficulty
@@ -150,7 +149,7 @@ def get_solved_questions() -> list[dict[str, Any]]:
     # Deduplicate by slug and discard malformed rows.
     unique = {}
     for q in questions:
-        if q.get("titleSlug") and q.get("questionFrontendId") and q.get("title"):
+        if q.get("titleSlug") and q.get("frontendId") and q.get("title"):
             unique[q["titleSlug"]] = q
     out = list(unique.values())
     if MAX_PROBLEMS:
@@ -169,7 +168,7 @@ def existing_language_for_question(question: dict[str, Any], ext: str) -> bool:
     """Detect a same-language solution in this repo's existing LeetSync-style layout."""
     slug = norm(str(question.get("titleSlug", "")))
     title = norm(str(question.get("title", "")))
-    qid = norm(str(question.get("questionFrontendId", "")))
+    qid = norm(str(question.get("frontendId", "")))
     for path in ROOT.rglob("*"):
         if not path.is_file() or ".git" in path.parts or path == REPORT:
             continue
@@ -262,7 +261,7 @@ def main() -> None:
     main._added_paths = []
     for index, question in enumerate(questions, start=1):
         slug = str(question["titleSlug"])
-        qid = str(question["questionFrontendId"])
+        qid = str(question["frontendId"])
         title = str(question["title"])
         difficulty = str(question.get("difficulty") or "Unknown")
         try:
